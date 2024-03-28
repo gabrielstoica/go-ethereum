@@ -106,6 +106,7 @@ var PrecompiledContractsCancun = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}):    &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{9}):    &blake2F{},
 	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
+	common.BytesToAddress([]byte{0x64}): &myPrecompile{},
 }
 
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
@@ -1137,4 +1138,24 @@ func kZGToVersionedHash(kzg kzg4844.Commitment) common.Hash {
 	h[0] = blobCommitmentVersionKZG
 
 	return h
+}
+
+type myPrecompile struct{}
+
+func (c *myPrecompile) RequiredGas(_ []byte) uint64 {
+	return 0
+}
+
+func (c *myPrecompile) Run(input []byte) ([]byte, error) {
+	if len(input) < 4 {
+		return nil, errors.New("short input")
+	}
+
+	if input[0] == 0xC2 && input[1] == 0x98 && input[2] == 0x55 && input[3] == 0x78 { // function selector of `foo()`
+		return common.LeftPadBytes([]byte{43}, 32), nil
+	} else if input[0] == 0xFE && input[1] == 0xBB && input[2] == 0x0F && input[3] == 0x7E { // function selector of `bar()
+		return nil, nil
+	} else {
+		return nil, errors.New("bad input")
+	}
 }

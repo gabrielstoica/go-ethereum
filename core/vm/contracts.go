@@ -32,6 +32,7 @@ import (
 	"github.com/ethereum/go-ethereum/crypto/bn256"
 	"github.com/ethereum/go-ethereum/crypto/kzg4844"
 	"github.com/ethereum/go-ethereum/params"
+	"github.com/hbakhtiyor/schnorr"
 	"golang.org/x/crypto/ripemd160"
 )
 
@@ -82,15 +83,17 @@ var PrecompiledContractsIstanbul = map[common.Address]PrecompiledContract{
 // PrecompiledContractsBerlin contains the default set of pre-compiled Ethereum
 // contracts used in the Berlin release.
 var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
-	common.BytesToAddress([]byte{1}): &ecrecover{},
-	common.BytesToAddress([]byte{2}): &sha256hash{},
-	common.BytesToAddress([]byte{3}): &ripemd160hash{},
-	common.BytesToAddress([]byte{4}): &dataCopy{},
-	common.BytesToAddress([]byte{5}): &bigModExp{eip2565: true},
-	common.BytesToAddress([]byte{6}): &bn256AddIstanbul{},
-	common.BytesToAddress([]byte{7}): &bn256ScalarMulIstanbul{},
-	common.BytesToAddress([]byte{8}): &bn256PairingIstanbul{},
-	common.BytesToAddress([]byte{9}): &blake2F{},
+	common.BytesToAddress([]byte{1}):    &ecrecover{},
+	common.BytesToAddress([]byte{2}):    &sha256hash{},
+	common.BytesToAddress([]byte{3}):    &ripemd160hash{},
+	common.BytesToAddress([]byte{4}):    &dataCopy{},
+	common.BytesToAddress([]byte{5}):    &bigModExp{eip2565: true},
+	common.BytesToAddress([]byte{6}):    &bn256AddIstanbul{},
+	common.BytesToAddress([]byte{7}):    &bn256ScalarMulIstanbul{},
+	common.BytesToAddress([]byte{8}):    &bn256PairingIstanbul{},
+	common.BytesToAddress([]byte{9}):    &blake2F{},
+	common.BytesToAddress([]byte{1, 1}): &schnorrSignPrecompile{},
+	common.BytesToAddress([]byte{1, 2}): &schnorrVerifyPrecompile{},
 }
 
 // PrecompiledContractsCancun contains the default set of pre-compiled Ethereum
@@ -106,7 +109,6 @@ var PrecompiledContractsCancun = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{8}):    &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{9}):    &blake2F{},
 	common.BytesToAddress([]byte{0x0a}): &kzgPointEvaluation{},
-	common.BytesToAddress([]byte{0x64}): &myPrecompile{},
 }
 
 // PrecompiledContractsBLS contains the set of pre-compiled Ethereum
@@ -1140,22 +1142,81 @@ func kZGToVersionedHash(kzg kzg4844.Commitment) common.Hash {
 	return h
 }
 
-type myPrecompile struct{}
+const (
+	schnorrSignatureInputLength = 64  // Input length to request a Schnorr signature
+	schnorrVerifyInputLength    = 129 // Input length to verify a Schnorr signature
+)
 
-func (c *myPrecompile) RequiredGas(_ []byte) uint64 {
-	return 0
+var (
+	errSchnorrSignInvalidInputLength   = errors.New("Sign: invalid input length")
+	errSchnorrVerifyInvalidInputLength = errors.New("Verify: invalid input length")
+)
+
+// Custom Schnorr verify precompile
+type schnorrSignPrecompile struct{}
+
+func (c *schnorrSignPrecompile) RequiredGas(input []byte) uint64 {
+	return uint64(1024)
 }
 
-func (c *myPrecompile) Run(input []byte) ([]byte, error) {
-	if len(input) < 4 {
-		return nil, errors.New("short input")
+func (c *schnorrSignPrecompile) Run(input []byte) ([]byte, error) {
+	if len(input) != schnorrSignatureInputLength {
+		return nil, errSchnorrSignInvalidInputLength
 	}
 
-	if input[0] == 0xC2 && input[1] == 0x98 && input[2] == 0x55 && input[3] == 0x78 { // function selector of `foo()`
-		return common.LeftPadBytes([]byte{43}, 32), nil
-	} else if input[0] == 0xFE && input[1] == 0xBB && input[2] == 0x0F && input[3] == 0x7E { // function selector of `bar()
-		return nil, nil
-	} else {
-		return nil, errors.New("bad input")
+	input = common.RightPadBytes(input, schnorrSignatureInputLength)
+	// "input" is (privateKey, message)
+	// Note:
+	// - privateKey is 33 bytes
+	// - message is 32 bytes
+
+	privateKey := new(big.Int).SetBytes(input[:32])
+	message := [32]byte(input[32:])
+
+	result, _ := schnorr.Sign(privateKey, message)
+
+	resultT := []byte(result[:])
+
+	// the first byte of pubkey is bitcoin heritage
+	return resultT, nil
+}
+
+// Custom Schnorr verify precompile
+type schnorrVerifyPrecompile struct{}
+
+func (c *schnorrVerifyPrecompile) RequiredGas(input []byte) uint64 {
+	return uint64(1024)
+}
+
+func (c *schnorrVerifyPrecompile) Run(input []byte) ([]byte, error) {
+	if len(input) != schnorrVerifyInputLength {
+		return nil, errSchnorrVerifyInvalidInputLength
 	}
+
+	input = common.RightPadBytes(input, schnorrVerifyInputLength)
+	// "input" is (publicKey, message, signature)
+	// Note:
+	// - publicKey is 33 bytes
+	// - message is 32 bytes
+	// - signature is 64 bytes
+
+	publicKey := [33]byte(input[:33])
+	fmt.Println(publicKey)
+	message := [32]byte(input[33:65])
+	fmt.Println(message)
+	signature := [64]byte(input[65:])
+	fmt.Println(signature)
+
+	result, _ := schnorr.Verify(publicKey, message, signature)
+	fmt.Print(result)
+	var boolByte byte
+	if result {
+		boolByte = 1
+	} else {
+		boolByte = 0
+	}
+
+	resultB := []byte{boolByte}
+	// the first byte of pubkey is bitcoin heritage
+	return resultB, nil
 }

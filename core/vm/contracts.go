@@ -92,8 +92,8 @@ var PrecompiledContractsBerlin = map[common.Address]PrecompiledContract{
 	common.BytesToAddress([]byte{7}):    &bn256ScalarMulIstanbul{},
 	common.BytesToAddress([]byte{8}):    &bn256PairingIstanbul{},
 	common.BytesToAddress([]byte{9}):    &blake2F{},
-	common.BytesToAddress([]byte{1, 1}): &schnorrSignPrecompile{},
-	common.BytesToAddress([]byte{1, 2}): &schnorrVerifyPrecompile{},
+	common.BytesToAddress([]byte{1, 1}): &schnorrSign{},
+	common.BytesToAddress([]byte{1, 2}): &schnorrVerify{},
 }
 
 // PrecompiledContractsCancun contains the default set of pre-compiled Ethereum
@@ -1153,13 +1153,13 @@ var (
 )
 
 // Custom Schnorr verify precompile
-type schnorrSignPrecompile struct{}
+type schnorrSign struct{}
 
-func (c *schnorrSignPrecompile) RequiredGas(input []byte) uint64 {
+func (c *schnorrSign) RequiredGas(input []byte) uint64 {
 	return uint64(1024)
 }
 
-func (c *schnorrSignPrecompile) Run(input []byte) ([]byte, error) {
+func (c *schnorrSign) Run(input []byte) ([]byte, error) {
 	if len(input) != schnorrSignatureInputLength {
 		return nil, errSchnorrSignInvalidInputLength
 	}
@@ -1182,13 +1182,13 @@ func (c *schnorrSignPrecompile) Run(input []byte) ([]byte, error) {
 }
 
 // Custom Schnorr verify precompile
-type schnorrVerifyPrecompile struct{}
+type schnorrVerify struct{}
 
-func (c *schnorrVerifyPrecompile) RequiredGas(input []byte) uint64 {
+func (c *schnorrVerify) RequiredGas(input []byte) uint64 {
 	return uint64(1024)
 }
 
-func (c *schnorrVerifyPrecompile) Run(input []byte) ([]byte, error) {
+func (c *schnorrVerify) Run(input []byte) ([]byte, error) {
 	if len(input) != schnorrVerifyInputLength {
 		return nil, errSchnorrVerifyInvalidInputLength
 	}

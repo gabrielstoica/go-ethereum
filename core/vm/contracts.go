@@ -1148,11 +1148,11 @@ const (
 )
 
 var (
-	errSchnorrSignInvalidInputLength   = errors.New("Sign: invalid input length")
-	errSchnorrVerifyInvalidInputLength = errors.New("Verify: invalid input length")
+	errSchnorrSignInvalidInputLength   = errors.New("sign: invalid input length")
+	errSchnorrVerifyInvalidInputLength = errors.New("verify: invalid input length")
 )
 
-// Custom Schnorr verify precompile
+// Custom precompile to sign messages using a Schnorr scheme
 type schnorrSign struct{}
 
 func (c *schnorrSign) RequiredGas(input []byte) uint64 {
@@ -1174,14 +1174,12 @@ func (c *schnorrSign) Run(input []byte) ([]byte, error) {
 	message := [32]byte(input[32:])
 
 	result, _ := schnorr.Sign(privateKey, message)
-
 	resultT := []byte(result[:])
 
-	// the first byte of pubkey is bitcoin heritage
 	return resultT, nil
 }
 
-// Custom Schnorr verify precompile
+// Custom precompile to verify Schnorr-based signatures
 type schnorrVerify struct{}
 
 func (c *schnorrVerify) RequiredGas(input []byte) uint64 {
@@ -1201,14 +1199,11 @@ func (c *schnorrVerify) Run(input []byte) ([]byte, error) {
 	// - signature is 64 bytes
 
 	publicKey := [33]byte(input[:33])
-	fmt.Println(publicKey)
 	message := [32]byte(input[33:65])
-	fmt.Println(message)
 	signature := [64]byte(input[65:])
-	fmt.Println(signature)
 
 	result, _ := schnorr.Verify(publicKey, message, signature)
-	fmt.Print(result)
+
 	var boolByte byte
 	if result {
 		boolByte = 1
@@ -1217,6 +1212,5 @@ func (c *schnorrVerify) Run(input []byte) ([]byte, error) {
 	}
 
 	resultB := []byte{boolByte}
-	// the first byte of pubkey is bitcoin heritage
 	return resultB, nil
 }
